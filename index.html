@@ -11,14 +11,14 @@
     <div id="loader-container" class="loader-container">
         <div class="loader-wrapper">
             <div class="loader"></div>
-            <p class="loader-text">Loading...</p>
             <p class="loader-text">Initializing the game</p>
+            <p class="loader-hint" id="loader-hint" style="display: block !important; visibility: visible !important; opacity: 0.8 !important;">Click anywhere to start</p>
         </div>
     </div>
 
     <!-- Video Section -->
     <div id="video-container" class="video-container">
-        <video id="video-player" class="video-player" playsinline loop preload="auto" webkit-playsinline>
+        <video id="video-player" class="video-player" autoplay playsinline loop preload="auto" webkit-playsinline>
             <source src="raw.mp4" type="video/mp4">
             Your browser does not support the video tag.
         </video>

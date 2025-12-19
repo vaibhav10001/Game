@@ -10,6 +10,8 @@ const videoPlayer = document.getElementById('video-player');
 let videoReady = false;
 // Flag to block play until loader is done
 let playBlocked = true; // Start with play blocked
+// Flag to track if user has interacted (required for autoplay)
+let userInteracted = false;
 
 // Initialize video player
 function initVideo() {
@@ -71,6 +73,7 @@ function playVideo() {
     if (videoReady || videoPlayer.readyState >= 2 || videoPlayer.readyState >= 1) {
         console.log('Video ready, attempting autoplay...');
         console.log('Video readyState:', videoPlayer.readyState);
+        console.log('User interacted:', userInteracted);
         
         // Force play the video (muted for autoplay)
         const playPromise = videoPlayer.play();
@@ -82,12 +85,26 @@ function playVideo() {
                 setTimeout(function() {
                     videoPlayer.muted = false;
                     console.log('🔊 Video unmuted - sound enabled');
-                }, 800); // Delay to ensure playback has started
+                }, 1000); // Delay to ensure playback has started
             }).catch(function(error) {
                 console.error('❌ Autoplay prevented:', error);
-                // Try again immediately with retry logic
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                
+                // If autoplay is blocked, try to enable it through user interaction simulation
+                if (!userInteracted) {
+                    console.log('⚠️ No user interaction yet, trying to enable...');
+                    enableAutoplay();
+                    // Wait a bit and try again
+                    setTimeout(function() {
+                        playVideo();
+                    }, 500);
+                    return;
+                }
+                
+                // Try again with retry logic
                 let attempts = 0;
-                const maxAttempts = 5;
+                const maxAttempts = 10;
                 
                 const retryPlay = function() {
                     attempts++;
@@ -99,11 +116,11 @@ function playVideo() {
                             // Unmute after successful play
                             setTimeout(function() {
                                 videoPlayer.muted = false;
-                            }, 800);
+                            }, 1000);
                         }).catch(function(err) {
                             console.log('❌ Play attempt ' + attempts + ' failed:', err);
                             if (attempts < maxAttempts) {
-                                setTimeout(retryPlay, 300);
+                                setTimeout(retryPlay, 200);
                             } else {
                                 console.error('All autoplay attempts failed');
                             }
@@ -111,7 +128,7 @@ function playVideo() {
                     }
                 };
                 
-                setTimeout(retryPlay, 300);
+                setTimeout(retryPlay, 200);
             });
         } else {
             // Fallback for older browsers
@@ -119,7 +136,7 @@ function playVideo() {
             // Unmute after play
             setTimeout(function() {
                 videoPlayer.muted = false;
-            }, 800);
+            }, 1000);
         }
     } else {
         // Wait a bit more if video is not ready
@@ -130,10 +147,82 @@ function playVideo() {
     }
 }
 
+// Capture user interaction early to enable autoplay
+function enableAutoplay() {
+    if (!userInteracted) {
+        userInteracted = true;
+        console.log('✅ User interaction detected - autoplay enabled');
+        
+        // Hide the hint message
+        const hint = document.getElementById('loader-hint');
+        if (hint) {
+            hint.style.opacity = '0';
+            hint.style.transition = 'opacity 0.5s';
+            setTimeout(function() {
+                hint.style.display = 'none';
+            }, 500);
+        }
+        
+        // Try to play and pause immediately to "unlock" autoplay
+        // This tricks the browser into thinking user wants to play
+        videoPlayer.muted = true;
+        const testPlay = videoPlayer.play();
+        if (testPlay !== undefined) {
+            testPlay.then(function() {
+                videoPlayer.pause();
+                console.log('Autoplay capability unlocked');
+            }).catch(function(err) {
+                console.log('Could not unlock autoplay:', err);
+            });
+        }
+    }
+}
+
+// Listen for any user interaction to enable autoplay
+function handleUserInteraction() {
+    enableAutoplay();
+    // Also try to play video immediately if loader is done
+    if (loaderContainer.classList.contains('hidden') && videoPlayer.paused) {
+        videoPlayer.muted = true;
+        videoPlayer.play().then(function() {
+            setTimeout(function() {
+                videoPlayer.muted = false;
+            }, 500);
+        }).catch(function(err) {
+            console.log('Play on interaction failed:', err);
+        });
+    }
+}
+
+document.addEventListener('click', handleUserInteraction);
+document.addEventListener('touchstart', handleUserInteraction);
+document.addEventListener('keydown', handleUserInteraction);
+// Also make loader clickable
+loaderContainer.addEventListener('click', handleUserInteraction);
+loaderContainer.addEventListener('touchstart', handleUserInteraction);
+
 // Show loader for 4-5 seconds, then show video
 window.addEventListener('DOMContentLoaded', function() {
     // Initialize video in the background
     initVideo();
+    
+    // Try to programmatically enable autoplay by simulating interaction
+    // Some browsers allow this if done early enough
+    setTimeout(function() {
+        // Try to trigger autoplay capability
+        try {
+            // Create a synthetic click event on the document
+            const clickEvent = new MouseEvent('click', {
+                view: window,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(clickEvent);
+            enableAutoplay();
+        } catch(e) {
+            console.log('Could not simulate interaction:', e);
+        }
+    }, 200);
     
     // Continuously check and pause video if loader is visible
     const pauseCheckInterval = setInterval(function() {
@@ -161,6 +250,7 @@ window.addEventListener('DOMContentLoaded', function() {
             
             // Force play the video immediately
             console.log('Loader finished, starting video playback...');
+            console.log('User interacted:', userInteracted);
             playVideo();
         }, 50); // Reduced delay for faster response
     }, 4500); // 4.5 seconds
@@ -176,21 +266,19 @@ videoPlayer.addEventListener('error', function(e) {
     }
 });
 
-// Fallback: Only if autoplay completely fails, allow click to play
-// This should rarely be needed if autoplay works
-document.addEventListener('click', function() {
-    // Only as last resort if video is still paused after loader
+// Additional click handler for video container (if user clicks on video area)
+videoContainer.addEventListener('click', function() {
     if (videoPlayer.paused && loaderContainer.classList.contains('hidden')) {
         videoPlayer.muted = true;
         videoPlayer.play().then(function() {
             setTimeout(function() {
                 videoPlayer.muted = false;
-            }, 300);
+            }, 500);
         }).catch(function(error) {
-            console.log('Play error on click:', error);
+            console.log('Play error on video container click:', error);
         });
     }
-}, { once: true });
+});
 
 // Prevent video from playing until loader is done
 videoPlayer.addEventListener('canplaythrough', function() {

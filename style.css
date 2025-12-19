@@ -39,6 +39,11 @@ body {
     gap: 30px;
 }
 
+.loader-wrapper p {
+    margin: 0;
+    padding: 0;
+}
+
 /* Loader Animation */
 .loader {
     width: 60px;
@@ -62,6 +67,25 @@ body {
     letter-spacing: 2px;
     text-transform: uppercase;
     animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Loader Hint */
+.loader-hint {
+    color: #ffffff !important;
+    font-size: 16px !important;
+    font-weight: 400;
+    opacity: 0.8 !important;
+    margin-top: 15px !important;
+    letter-spacing: 1px;
+    text-transform: none;
+    display: block !important;
+    visibility: visible !important;
+    animation: pulseHint 2s ease-in-out infinite;
+}
+
+@keyframes pulseHint {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 0.5; }
 }
 
 @keyframes pulse {
