@@ -8,6 +8,8 @@ const videoPlayer = document.getElementById('video-player');
 
 // Flag to track if video is ready
 let videoReady = false;
+// Flag to block play until loader is done
+let playBlocked = true; // Start with play blocked
 
 // Initialize video player
 function initVideo() {
@@ -52,58 +54,64 @@ function initVideo() {
 
 // Function to play video
 function playVideo() {
-    // Ensure video is muted for autoplay (required by browsers)
-    videoPlayer.muted = true;
-    
-    // Check if loader is hidden before playing
+    // Check if loader is still visible or play is blocked
+    // If loader doesn't have 'hidden' class, it's still visible - wait
     if (!loaderContainer.classList.contains('hidden') || playBlocked) {
         // Wait a bit more
         setTimeout(function() {
             playVideo();
-        }, 100);
+        }, 50);
         return;
     }
     
+    // Ensure video is muted for autoplay (required by browsers)
+    videoPlayer.muted = true;
+    
     // Check if video is ready
-    if (videoReady || videoPlayer.readyState >= 2) {
-        console.log('Attempting to play video...');
+    if (videoReady || videoPlayer.readyState >= 2 || videoPlayer.readyState >= 1) {
+        console.log('Video ready, attempting autoplay...');
+        console.log('Video readyState:', videoPlayer.readyState);
         
         // Force play the video (muted for autoplay)
         const playPromise = videoPlayer.play();
         
         if (playPromise !== undefined) {
             playPromise.then(function() {
-                console.log('Video playing successfully');
+                console.log('✅ Video playing successfully!');
                 // Unmute the video after it starts playing so sound comes
                 setTimeout(function() {
                     videoPlayer.muted = false;
-                    console.log('Video unmuted - sound enabled');
-                }, 500); // Small delay to ensure playback has started
+                    console.log('🔊 Video unmuted - sound enabled');
+                }, 800); // Delay to ensure playback has started
             }).catch(function(error) {
-                console.log('Autoplay prevented:', error);
-                // Try again after a short delay with multiple attempts
+                console.error('❌ Autoplay prevented:', error);
+                // Try again immediately with retry logic
                 let attempts = 0;
-                const maxAttempts = 3;
+                const maxAttempts = 5;
                 
                 const retryPlay = function() {
                     attempts++;
+                    console.log('Retry attempt:', attempts);
                     if (attempts <= maxAttempts) {
                         videoPlayer.muted = true;
                         videoPlayer.play().then(function() {
+                            console.log('✅ Video playing on retry attempt', attempts);
                             // Unmute after successful play
                             setTimeout(function() {
                                 videoPlayer.muted = false;
-                            }, 500);
+                            }, 800);
                         }).catch(function(err) {
-                            console.log('Play attempt ' + attempts + ' failed:', err);
+                            console.log('❌ Play attempt ' + attempts + ' failed:', err);
                             if (attempts < maxAttempts) {
-                                setTimeout(retryPlay, 500);
+                                setTimeout(retryPlay, 300);
+                            } else {
+                                console.error('All autoplay attempts failed');
                             }
                         });
                     }
                 };
                 
-                setTimeout(retryPlay, 500);
+                setTimeout(retryPlay, 300);
             });
         } else {
             // Fallback for older browsers
@@ -111,14 +119,14 @@ function playVideo() {
             // Unmute after play
             setTimeout(function() {
                 videoPlayer.muted = false;
-            }, 500);
+            }, 800);
         }
     } else {
         // Wait a bit more if video is not ready
-        console.log('Video not ready yet, waiting...');
+        console.log('⏳ Video not ready yet (readyState:', videoPlayer.readyState + '), waiting...');
         setTimeout(function() {
             playVideo();
-        }, 200);
+        }, 100);
     }
 }
 
@@ -140,8 +148,9 @@ window.addEventListener('DOMContentLoaded', function() {
     
     // Hide loader and show video after 4.5 seconds
     setTimeout(function() {
+        // Unblock play first
+        playBlocked = false;
         loaderContainer.classList.add('hidden');
-        playBlocked = false; // Allow video to play now
         
         // Small delay before showing video for smooth transition
         setTimeout(function() {
@@ -150,9 +159,10 @@ window.addEventListener('DOMContentLoaded', function() {
             // Ensure video is muted for autoplay (browser requirement)
             videoPlayer.muted = true;
             
-            // Now play the video
+            // Force play the video immediately
+            console.log('Loader finished, starting video playback...');
             playVideo();
-        }, 100);
+        }, 50); // Reduced delay for faster response
     }, 4500); // 4.5 seconds
 });
 
@@ -166,22 +176,18 @@ videoPlayer.addEventListener('error', function(e) {
     }
 });
 
-// Fallback: Ensure video plays when user interacts (for autoplay restrictions)
-// This is only a fallback if autoplay fails
+// Fallback: Only if autoplay completely fails, allow click to play
+// This should rarely be needed if autoplay works
 document.addEventListener('click', function() {
-    if (videoPlayer.paused && !loaderContainer.classList.contains('hidden')) {
-        // Don't play if loader is still visible
-        return;
-    }
-    if (videoPlayer.paused) {
-        videoPlayer.muted = true; // Start muted
+    // Only as last resort if video is still paused after loader
+    if (videoPlayer.paused && loaderContainer.classList.contains('hidden')) {
+        videoPlayer.muted = true;
         videoPlayer.play().then(function() {
-            // Unmute after play starts
             setTimeout(function() {
                 videoPlayer.muted = false;
             }, 300);
         }).catch(function(error) {
-            console.log('Play error:', error);
+            console.log('Play error on click:', error);
         });
     }
 }, { once: true });
@@ -195,17 +201,10 @@ videoPlayer.addEventListener('canplaythrough', function() {
 });
 
 // Block play events only when loader is visible
-let playBlocked = true; // Start with play blocked
-
 videoPlayer.addEventListener('play', function(e) {
+    // Only block if loader is still visible
     if (playBlocked && !loaderContainer.classList.contains('hidden')) {
-        e.preventDefault();
         videoPlayer.pause();
     }
 });
-
-// Allow play after loader is hidden
-setTimeout(function() {
-    playBlocked = false;
-}, 4500);
 
